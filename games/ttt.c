@@ -1,7 +1,5 @@
 #include "ttt.h"
 
-
-
 // TTT CLIENT CONTROLS
 void ttt_game_env_init(Environment *env) {
     TTTGameEnv *game_env;
@@ -19,37 +17,19 @@ void ttt_game_env_init(Environment *env) {
     game_env->game_state = -1;
 }
 
-int ttt_get_opponent_client_number(int client_number) {
-    // if (client_number is even) => opponent is the odd after
-    // else                       => opponent is the even before
-    // 0-1   2-3   4-5   6-7 ...
-    return (client_number % 2 == 0) 
-            ? client_number + 1
-            : client_number - 1;
-}
-
-int ttt_get_game_index(int client_number) {
-    return (client_number % 2 == 0) 
-            ? client_number/2
-            : (client_number - 1)/2;
-}
-
 // TURN FSM
 int ttt_verify_move(Environment *env) {
     
     TTTGameEnv *game_env;
     game_env = (TTTGameEnv *)env;
 
-    int move = -1;
-    int sscanf_val = sscanf(game_env->buffer, "%d", &move);
-    if (sscanf_val != 0) {
-        if (TOP_LEFT <= move && move <= BOT_RIGHT) {
-            printf("RECEIVED move: %d\n", move);
-            game_env->cmove = move;
-        } else {
-            printf("\n%d is not a move!!!\n", move);
-            return 0;
-        }
+    int move = game_env->buffer;
+    if (TOP_LEFT <= move && move <= BOT_RIGHT) {
+        printf("RECEIVED move: %d\n", move);
+        game_env->cmove = move;
+    } else {
+        printf("\n%d is not a move!!!\n", move);
+        return 0;
     }
     if (game_env->board[game_env->cmove] != BOARD_FILLER) {
         printf("Move %d received from P%d is invalid!\n", game_env->cmove, (game_env->turn_counter%2)+1);

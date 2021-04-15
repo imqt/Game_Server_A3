@@ -37,7 +37,7 @@ def connect_to_server(s):
 			except:
 				print(port_input + " was not a valid option")
 
-		print("Making connectiong to port: ", port);
+		print("Making connection to port: ", port);
 
 		address_string = "http://" + host + ":" + str(port)
 		print(address_string)
@@ -90,10 +90,11 @@ def recv_byte(s):
 def recv_moves_list(s):
 	moves_list = []
 	data = recv_byte(s)
+	print("Received data: ", data)
 	while data != 9:
 		moves_list.append(data)
 		data = recv_byte(s)
-		print(data)
+		print("Received data: ", data)
 
 	print("Moves: ", moves_list)
 	return moves_list
@@ -116,7 +117,7 @@ def recv_game_end(s, play_turn):
 
 def prompt_send_data(s):
 	while 1:
-		toSend = input("\n[Make your move (0-8)]: ")
+		toSend = input("\n[Make your move]: ")
 		if toSend == "end":
 			system(exit)
 		try:
@@ -125,7 +126,7 @@ def prompt_send_data(s):
 			print("Not a valid option")
 			continue
 		break
-	s.sendall(str(toSend).encode('utf-8'))
+	s.sendall(bytes(chr(toSend), 'utf-8'))
 
 
 # TTT gameplay
@@ -171,11 +172,13 @@ def ttt(s):
 	else:
 		return True
 
+def recv_rps_game_status():
+	return 0
 
 # RPS gameplay
 def rps(s):
 	print("RPS")
-
+	prompt_send_data(s)
 	s.close()
 	print("[ PRESS ENTER TO PLAY AGAIN! ]")
 	print("OR\n[ Enter 'quit' to exit the game! ]")
@@ -185,19 +188,33 @@ def rps(s):
 		return True
 
 
+def choose_game():
+	game_choice = ""
+	while 1:
+		game_choice = input("Choose game:\n(1) TicTacToe\n(2) RockPaperScissors\n[ Choice ]:")
+		try:
+			game_choice = int(game_choice)
+		except:
+			print("Not a valid option")
+			continue
+		break
+	return game_choice
+
 def main():
-		while 1:
-			with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-				connect_to_server(s)
 
-				game_choice = input("Choose game:\n(1) TicTacToe\n(2) RockPaperScissors\n[ Choice ]:")
+	while 1:
+		game_choice = choose_game()
 
-				if game_choice == '1':
-					if not ttt(s):
-						return;
-				elif game_choice == '2':
-					if not rps(s):
-						return;
+		with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+			connect_to_server(s)
+			s.sendall(bytes(chr(game_choice), "utf-8"))
+
+			if game_choice == 1:
+				if not ttt(s):
+					return;
+			elif game_choice == 2:
+				if not rps(s):
+					return;
 
 
 if __name__ == "__main__":

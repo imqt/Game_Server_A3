@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 #include <netinet/in.h>
-#include "../fsm.h"
+#include "../fsm/fsm.h"
 
 #define BOARD_SIZE      9
 #define MOVES_LIST_SIZE 10
@@ -20,13 +20,11 @@ typedef struct {
     int board[BOARD_SIZE];
     int turn_counter;
     int game_state; // 0 still going, 1 p1 won, 2 p2 won, 3 tie game
-    char * buffer;
+    uint8_t buffer;
     int cfd;
     int ofd;
 } TTTGameEnv;
 
-int ttt_get_opponent_client_number(int client_number);
-int ttt_get_game_index(int client_number);
 int ttt_verify_move(Environment *env);
 int ttt_update_game_board(Environment *env);
 int ttt_check_end_state(Environment *env);
