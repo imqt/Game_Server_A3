@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">A3_CLIENT</string>
+    <string name="title_activity_main">A3_CLIENT</string>
+    <string name="default_address">10.0.2.2</string>
+    <string name="default_port">49152</string>
+    <string name="btn_connect">Connect</string>
+    <string name="btnRock">ROCK</string>
+    <string name="btnPaper">PAPER</string>
+    <string name="btnScissors">SCISSORS</string>
+</resources>
