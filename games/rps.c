@@ -7,7 +7,8 @@ void rps_game_env_init(Environment *env) {
 
     // Initializing some game variables
     game_env->p_ready = 0;
-    game_env->game_state = -1;
     game_env->p1move = -1;
     game_env->p2move = -1;
+    game_env->p1fd = -1;
+    game_env->p2fd = -1;
 }

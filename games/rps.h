@@ -14,12 +14,10 @@ typedef enum {
 // Game environment variables
 typedef struct {
     int p_ready;
-    int game_state; // 0 still going, 1 p1 won, 2 p2 won, 3 tie game
     int p1move;     // 1, 2, 3
     int p2move;     // 1, 2, 3
-    uint8_t buffer;
-    int cfd;
-    int ofd;
+    int p1fd;     // 1, 2, 3
+    int p2fd;     // 1, 2, 3
 } RPSGameEnv;
 
 void rps_game_env_init(Environment *env);

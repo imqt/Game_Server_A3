@@ -43,8 +43,6 @@ typedef enum {
     ACTION_OUT_OF_TURN = 51
 } RES_TYPE;
 
-char* wait_msg = "Please wait for your opponent(s)!";
-
 static int start_server(struct sockaddr_in * server_addresss, int port);
 static int user_port();
 static int reset_rfds(fd_set *rfds, int server_socket, int *max_fd, int *client_socket);
@@ -61,6 +59,17 @@ StateTransition ttt_transitions[] =
     { SENT_2_CLIENTS,   FSM_EXIT,         NULL               }, 
 };
 
+static uint8_t readn(int fd, int n) {
+    uint8_t byte;
+    printf("request:: ");
+    for (int i = 0; i < n; i++) {
+        read(fd, &byte, 1);
+        printf("%d ", byte);
+
+    }
+    printf("Last byte RECV:: %d\n", byte);
+    return byte;
+}
 
 int main() {
     // Starting up server
@@ -88,12 +97,19 @@ int main() {
     int ttt_game_index;
     int rps_game_index;
     int game_type = 0;
+    uint8_t first_reply[7] = {10,1,4,0,0,0,69}; // needs to change 6
+    uint8_t start_game_p1[4] = {20,1,1,1};
+    uint8_t start_game_p2[4] = {20,1,1,2};
+    uint8_t start_game_rps[3] = {20,1,0};
+    uint8_t confirm_move[3] = {10,4,0};
+    uint8_t reject_move[3] = {34,4,0};
+    uint8_t move_update[4] = {20,2,1,0}; // needs to change 4
+    uint8_t end_update[5] = {20,3,2,3,0}; // needs to change 3 and 4
+    uint8_t o_disconnect[3] = {20,4,0};
 
     while(1) {
         puts("\nvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv");
-
         reset_rfds(&rfds, server_socket, &max_fd, client_socket);
-
         puts("[ ~ ] selecting");
         if ((select( max_fd + 1, &rfds, NULL, NULL, NULL) < 0) && (errno!=EINTR)) {printf("select error\n");}
 
@@ -102,13 +118,11 @@ int main() {
 
             // Get the new connection
             if ((new_socket = accept(server_socket, (struct sockaddr*)&server_address, (socklen_t*)&addrlen)) < 0) {perror("accept");exit(EXIT_FAILURE);}
-            
-            //inform server admin of socket number - used in send and receive commands
             printf("[N] New connection , socket fd is %d , ip is : %s , port : %d \n", new_socket, inet_ntoa(server_address.sin_addr), ntohs(server_address.sin_port));
 
             // PARSE CLIENT REQUEST - to see which game they wanna play
-            read(new_socket, &byte, 1);
-            printf("[[[[ FIRST MESSAGE FROM CLIENT]]]]::::: %d\n", byte);
+            byte = readn(new_socket, 9);
+            // Decide game type. 1=> odd => ttt  2=>even => rps
             game_type = byte%2;
 
             // add new socket to smallest available index in the array of sockets
@@ -116,50 +130,55 @@ int main() {
                 // if position is empty
                 if (client_socket[i] == 0) {
                     if (i%2==0 && game_type == TTT) { // even slots for  => set up for ttt games
-                        printf("SHOVE INTO TTT: %d\n", i);
-                        client_socket[i] = new_socket;
-                        printf("[ + ] adding to list of sockets at %d\n[ + ] adding to list of sockets as %d\n", i, new_socket);
-                        printf("client_number %d, client_fd %d\n", i, client_socket[i]);
+                        printf("SHOVE INTO TTT at: %d\n", i);
+                        first_reply[6] = i;
+                        send(new_socket, &first_reply, 7, MSG_NOSIGNAL);
 
-                        i = i/2;
-                        ttt_game_index = get_game_index(i);
-                        int opponent_client_number = get_opponent_client_number(i);
-                        int ofd = client_socket[opponent_client_number*2];
+                        client_socket[i] = new_socket;
+                        printf("[ + ] adding to list of sockets at i= %d\n[ + ] adding to list of sockets as fd %d\n", i, new_socket);
+
+                        ttt_game_index = get_game_index(i/2);
+                        int ofd = client_socket[get_opponent_client_number(i/2)*2];
 
                         if (ofd > 0)    
                             ttt_game_envs[ttt_game_index].p_ready = 1;
                         
-                        printf("p_ready %d\n", ttt_game_envs[ttt_game_index].p_ready + 1);
+                        printf("Number of players in room %d is: %d\n", ttt_game_index, ttt_game_envs[ttt_game_index].p_ready + 1);
 
                         if (ttt_game_envs[ttt_game_index].p_ready == 1) {
                             ttt_game_envs[ttt_game_index].game_state = ONGOING;
-                            send(client_socket[ttt_game_index*2], &ttt_game_envs[ttt_game_index].moves[0], 1, MSG_NOSIGNAL );
-                            send(client_socket[ttt_game_index*2], &ttt_game_envs[ttt_game_index].game_state, 1, MSG_NOSIGNAL );
-                            printf("Start msg sent to client_number %d, client_fd %d\n", ttt_game_index*2, client_socket[ttt_game_index*2]);
+                            printf("Start game msg sent to p1 with fd:: %d\n", client_socket[ttt_game_index*2*2]);
+                            send(client_socket[ttt_game_index*2*2], &start_game_p1, 4, MSG_NOSIGNAL );
+                            printf("Start game msg sent to p2 with fd:: %d\n", client_socket[ttt_game_index*2*2+2]);
+                            send(client_socket[ttt_game_index*2*2+2], &start_game_p2, 4, MSG_NOSIGNAL );
                         }
                         break;
                     } // odd slots for rps => set up rps games
                     else if (i%2==1 && game_type == RPS) {
                         printf("SHOVE INTO RPS: %d\n", i);
+                        first_reply[6] = i;
+                        send(new_socket, &first_reply, 7, MSG_NOSIGNAL);
+
                         client_socket[i] = new_socket;
                         printf("[ + ] adding to list of sockets at %d\n[ + ] adding to list of sockets as %d\n", i, new_socket);
-                        printf("client_number %d, client_fd %d\n", i, client_socket[i]);
 
                         i = (i-1)/2;
                         rps_game_index = get_game_index(i);
                         int opponent_client_number = get_opponent_client_number(i);
-                        int ofd = client_socket[opponent_client_number];
+                        int ofd = client_socket[opponent_client_number*2 + 1];
 
-                        if (ofd > 0)    
+                        if (ofd > 0)
                             rps_game_envs[rps_game_index].p_ready = 1;
                         
-                        printf("p_ready %d\n", rps_game_envs[rps_game_index].p_ready + 1);
+                        printf("Number of players in room %d is: %d\n", rps_game_index, rps_game_envs[rps_game_index].p_ready + 1);
 
                         if (rps_game_envs[rps_game_index].p_ready == 1) {
-                            rps_game_envs[rps_game_index].game_state = ONGOING;
-                            // send(client_socket[rps_game_index*2], &rps_game_envs[rps_game_index].moves[0], 1, MSG_NOSIGNAL );
-                            // send(client_socket[rps_game_index*2], &rps_game_envs[rps_game_index].game_state, 1, MSG_NOSIGNAL );
-                            printf("Start msg sent to client_number %d, client_fd %d\n", rps_game_index*2, client_socket[rps_game_index*2]);
+                            rps_game_envs[rps_game_index].p1fd = client_socket[rps_game_index*2*2+1];
+                            rps_game_envs[rps_game_index].p2fd = client_socket[rps_game_index*2*2+3];
+                            printf("Start game msg sent to p1 with fd:: %d\n", client_socket[rps_game_index*2*2+1]);
+                            send(client_socket[rps_game_index*2*2+1], &start_game_rps, 3, MSG_NOSIGNAL );
+                            printf("Start game msg sent to p2 with fd:: %d\n", client_socket[rps_game_index*2*2+3]);
+                            send(client_socket[rps_game_index*2*2+3], &start_game_rps, 3, MSG_NOSIGNAL );
                         }
                         break;
                     }
@@ -172,14 +191,15 @@ int main() {
                 cfd = client_socket[client_number];
                 if (FD_ISSET(cfd, &rfds)) {
                     if (client_number%2==0) { // TTT
+                        printf("IN TICTACTOE GAME ~~~~~~~~~~~~~~~~~");
                         int opponent_client_number = get_opponent_client_number(client_number/2)*2;
-
                         int opponent_fd = client_socket[opponent_client_number];
                         // read incoming msg
-                        nbytes = read(cfd, &byte, 1);
+                        byte = readn(cfd, 5);
+
                         printf("[[[[ MSG FROM CLIENT]]]]::::: %d\n", byte);
 
-                        if (nbytes == 0) { // Client disconnected
+                        if (byte == 0) { // Client disconnected
                             getpeername(cfd, (struct sockaddr*)&server_address, (socklen_t*) &addrlen);
                             printf("[ X ] Client disonnected, socket fd %d,  port %d \n", cfd, ntohs(server_address.sin_port));
                             close(cfd);
@@ -189,17 +209,13 @@ int main() {
                             ttt_game_index = get_game_index(client_number);
                             ttt_game_envs[ttt_game_index].p_ready = 0;
                             ttt_game_envs[ttt_game_index].game_state = -1;
-                            if (opponent_fd > 0) {
-                                if (opponent_client_number % 2 == 0)
-                                    ttt_game_envs[ttt_game_index].game_state = 1;
-                                else
-                                    ttt_game_envs[ttt_game_index].game_state = 2;
-                                ttt_game_envs[ttt_game_index].cfd = cfd;
-                                ttt_game_envs[ttt_game_index].ofd = opponent_fd;
-                                ttt_send_move_list((Environment *)&ttt_game_envs[ttt_game_index]);
+                            if (opponent_fd > 0) { // client disconnected, notify opponent
+                                send(opponent_fd, &o_disconnect, 3, MSG_NOSIGNAL);
                             }
-                        } 
+                        }
                         else { 
+                            byte = readn(cfd, 3);
+
                             // Here is where the logic of the game lies
                             // Process client's move
                             // Identify the client and decide which game this client belongs to and who the opponent is
@@ -212,7 +228,6 @@ int main() {
                             // Verify opponent is connected
                             if (opponent_fd <= 0) {
                                 printf("is not ready!");
-                                send(cfd, wait_msg, strlen(wait_msg), MSG_NOSIGNAL );
                                 break;
                             }
 
@@ -234,7 +249,103 @@ int main() {
                             break;
                         }
                     } else {
-                        // RPS
+                        printf("IN RPS GAME ~~~~~~~~~~~~~~~~~");
+                        int opponent_client_number = get_opponent_client_number((client_number-1)/2)*2+1;
+                        int opponent_fd = client_socket[opponent_client_number];
+                        // read incoming msg
+                        byte = readn(cfd, 5);
+
+                        printf("[[[[ MSG FROM CLIENT]]]]::::: %d\n", byte);
+
+                        if (byte == 0) { // Client disconnected
+                            getpeername(cfd, (struct sockaddr*)&server_address, (socklen_t*) &addrlen);
+                            printf("[ X ] Client disonnected, socket fd %d,  port %d \n", cfd, ntohs(server_address.sin_port));
+                            close(cfd);
+                            cfd = 0;
+                            client_socket[client_number] = cfd;
+
+                            rps_game_index = get_game_index(client_number);
+                            rps_game_envs[rps_game_index].p_ready = 0;
+                            if (opponent_fd > 0) { // client disconnected, notify opponent
+                                send(opponent_fd, &o_disconnect, 3, MSG_NOSIGNAL);
+                            }
+                        }
+                        else { 
+                            byte = readn(cfd, 3);
+                            printf("[ i ] port %d\n", ntohs(server_address.sin_port));
+                            printf("[ i ] client_number: %d, cfd: %d\n", client_number, cfd);
+                            printf("[ i ] Client's move received as:\n[<= ] "); fflush(stdout);
+                            printf("%d\n", byte);
+                            printf("\n[ i ] opponent_client_number: %d, ", opponent_client_number);
+
+                            // Verify client's move
+                            if (byte < 1 || byte > 3) {
+                                printf("Client made illegal move...");
+                                send(cfd, &reject_move, 3, MSG_NOSIGNAL);
+                            } else {
+                                // Send confirmation
+                                send(cfd, &confirm_move, 3, MSG_NOSIGNAL);
+                                // Identify the client and decide which game this client belongs to and who the opponent is
+                                // Verify opponent is connected
+                                if (opponent_fd <= 0) {
+                                    printf("is not ready!");
+                                    break;
+                                }
+                                printf("cfd: %d\n", opponent_fd);
+                                rps_game_index = get_game_index(client_number/2);
+
+                                int player = ((client_number-1)/2)%2 + 1;
+
+                                // Update game env
+                                if (player == 1) {
+                                    rps_game_envs[rps_game_index].p1move = byte;
+                                } else {
+                                    rps_game_envs[rps_game_index].p2move = byte;
+                                }
+
+                                int p1m = rps_game_envs[rps_game_index].p1move;
+                                int p2m = rps_game_envs[rps_game_index].p2move;
+
+                                int p1fd = rps_game_envs[rps_game_index].p1fd;
+                                int p2fd = rps_game_envs[rps_game_index].p2fd;
+
+                                // Do end game check
+                                if (p1m > 0 && p2m > 0) {
+
+                                    int dif = p1m - p2m;
+
+                                    if (dif == -1 || dif == 2) {
+                                        printf("P2Won\n");
+                                        end_update[3] = 2;
+                                        end_update[4] = p2m; //123 WLT
+                                        send(p1fd, &end_update, 5, MSG_NOSIGNAL);
+                                        end_update[3] = 1;
+                                        end_update[4] = p1m; //123 WLT
+                                        send(p2fd, &end_update, 5, MSG_NOSIGNAL);
+                                    } else if (dif == 0) {  
+                                        printf("TIE\n");
+
+                                        end_update[3] = 3;
+                                        end_update[4] = p2m; //123 WLT
+                                        send(p1fd, &end_update, 5, MSG_NOSIGNAL);
+                                        end_update[3] = 3;
+                                        end_update[4] = p1m; //123 WLT
+                                        send(p2fd, &end_update, 5, MSG_NOSIGNAL);
+                                    } else {
+                                        printf("P1Won\n");
+
+                                        end_update[3] = 1;
+                                        end_update[4] = p2m; //123 WLT
+                                        send(p1fd, &end_update, 5, MSG_NOSIGNAL);
+                                        end_update[3] = 2;
+                                        end_update[4] = p1m; //123 WLT
+                                        send(p2fd, &end_update, 5, MSG_NOSIGNAL);
+                                    }
+                                    rps_game_env_init((Environment *)&rps_game_envs[rps_game_index]);
+                                }
+                                break;
+                            }
+                        }
                     }
                 }
             }
