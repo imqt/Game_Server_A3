@@ -97,6 +97,7 @@ int main() {
     int ttt_game_index;
     int rps_game_index;
     int game_type = 0;
+
     uint8_t first_reply[7] = {10,1,4,0,0,0,69}; // needs to change 6
     uint8_t start_game_p1[4] = {20,1,1,1};
     uint8_t start_game_p2[4] = {20,1,1,2};
@@ -147,6 +148,9 @@ int main() {
 
                         if (ttt_game_envs[ttt_game_index].p_ready == 1) {
                             ttt_game_envs[ttt_game_index].game_state = ONGOING;
+                            ttt_game_envs[ttt_game_index].p1fd = client_socket[ttt_game_index*2*2];
+                            ttt_game_envs[ttt_game_index].p2fd = client_socket[ttt_game_index*2*2+2];
+
                             printf("Start game msg sent to p1 with fd:: %d\n", client_socket[ttt_game_index*2*2]);
                             send(client_socket[ttt_game_index*2*2], &start_game_p1, 4, MSG_NOSIGNAL );
                             printf("Start game msg sent to p2 with fd:: %d\n", client_socket[ttt_game_index*2*2+2]);
@@ -231,7 +235,7 @@ int main() {
                                 break;
                             }
 
-                            printf("cfd: %d\n", opponent_fd);
+                            printf("ofd: %d\n", opponent_fd);
                             ttt_game_index = get_game_index(client_number/2);
 
                             ttt_game_envs[ttt_game_index].cfd = cfd;
@@ -248,7 +252,7 @@ int main() {
                             
                             break;
                         }
-                    } else {
+                    } else { // RPS
                         printf("IN RPS GAME ~~~~~~~~~~~~~~~~~");
                         int opponent_client_number = get_opponent_client_number((client_number-1)/2)*2+1;
                         int opponent_fd = client_socket[opponent_client_number];

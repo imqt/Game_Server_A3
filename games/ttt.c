@@ -1,11 +1,18 @@
 #include "ttt.h"
 
+uint8_t confirm_move[3] = {10,4,0};
+uint8_t reject_move[3] = {34,4,0};
+uint8_t move_update[4] = {20,2,1,0}; // needs to change 4
+uint8_t end_update[5] = {20,3,2,3,0}; // needs to change 3 and 4
+
 // TTT CLIENT CONTROLS
 void ttt_game_env_init(Environment *env) {
     TTTGameEnv *game_env;
     game_env = (TTTGameEnv *)env;
     // Initializing some game variables
     game_env->p_ready = 0;
+    game_env->p1fd = 0;
+    game_env->p2fd = 0;
 
     game_env->turn_counter = 0;
     for (int i = 0; i < BOARD_SIZE; i++) {
@@ -108,39 +115,57 @@ int ttt_check_end_state(Environment *env) {
 }
 
 int ttt_send_move_list(Environment *env) {
-    
     TTTGameEnv *game_env;
     game_env = (TTTGameEnv *)env;
 
     int cfd = game_env->cfd;
     int ofd = game_env->ofd;
-
+    if (cfd > 0) {
+        send(cfd, &confirm_move, 3, MSG_NOSIGNAL);
+        printf("Sent cofirmation.\n");
+    }
     if (game_env->turn_counter == 0 && game_env->game_state != 0) {
         puts("Game ended before any move has been registered");
-        game_env->moves[0] = 4;
+        game_env->buffer = 4;
     }
-    puts("Data sent:");
-    for (int i = 0; i < MOVES_LIST_SIZE; i++) {
-        if (cfd > 0)
-            send(cfd, &game_env->moves[i], 1, MSG_NOSIGNAL );
-        if (ofd > 0)
-            send(ofd, &game_env->moves[i], 1, MSG_NOSIGNAL );
-        
-        printf("%d ",  game_env->moves[i]);
-        if (game_env->moves[i] == LIST_END) {
-            if (cfd > 0) {
-                send(cfd, &game_env->game_state, 1, MSG_NOSIGNAL );
-                printf("socket fd %d\n", cfd);
-            }
-            if (ofd > 0) {
-                send(ofd, &game_env->game_state, 1, MSG_NOSIGNAL );
-                printf("socket fd %d\n", ofd);
-            }
-            if (game_env->game_state)
-                ttt_game_env_init((Environment *)game_env);
-            break;
-        }
+    int p1fd = game_env->p1fd;
+    int p2fd = game_env->p2fd;
+    if (game_env->game_state == 1) { // P1 Won
+        printf("P1WON\n");
+        end_update[3] = 1;
+        end_update[4] = game_env->buffer; //123 WLT
+        send(p1fd, &end_update, 5, MSG_NOSIGNAL);
+        end_update[3] = 2;
+        end_update[4] = game_env->buffer; //123 WLT
+        send(p2fd, &end_update, 5, MSG_NOSIGNAL);
+    } else if (game_env->game_state == 2) { // P2 Won
+        printf("P2WON\n");
+        end_update[3] = 2;
+        end_update[4] = game_env->buffer; //123 WLT
+        send(p1fd, &end_update, 5, MSG_NOSIGNAL);
+        end_update[3] = 1;
+        end_update[4] = game_env->buffer; //123 WLT
+        send(p2fd, &end_update, 5, MSG_NOSIGNAL);
+    } else if (game_env->game_state == 3) { // Tie
+        printf("TIE\n");
+        end_update[3] = 3;
+        end_update[4] = game_env->buffer; //123 WLT
+        send(p1fd, &end_update, 5, MSG_NOSIGNAL);
+        end_update[3] = 3;
+        end_update[4] = game_env->buffer; //123 WLT
+        send(p2fd, &end_update, 5, MSG_NOSIGNAL);
     }
+
+    if (game_env->game_state) {
+        ttt_game_env_init((Environment *)game_env);
+        return FSM_EXIT;
+    }
+
+    move_update[3] = game_env->buffer;
+    if (ofd > 0)
+        send(ofd, &move_update, 4, MSG_NOSIGNAL);
+
+
     printf("\n");
     return FSM_EXIT;
 }

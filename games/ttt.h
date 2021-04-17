@@ -23,6 +23,8 @@ typedef struct {
     uint8_t buffer;
     int cfd;
     int ofd;
+    int p1fd;
+    int p2fd;
 } TTTGameEnv;
 
 int ttt_verify_move(Environment *env);

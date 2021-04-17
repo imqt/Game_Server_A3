@@ -12,7 +12,7 @@ AUTO_PORT = 0;
 def main():
 	print("TicTacToe Python client!\n")
 	print("Client Start Time =", datetime.now().strftime("%H:%M:%S"))
-	
+
 	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 		connect_to_server(s)
 		print("Connected Time =", datetime.now().strftime("%H:%M:%S"))
@@ -57,10 +57,17 @@ def main():
 				update_board(board, move, turn_counter)
 				turn_counter += 1
 			else:
-				turn_counter += 0 if turn_counter%2!=play_turn else 1
+
 				result = recv_response(s, 1)[0]
 				move = recv_response(s, 1)[0]
-				update_board(board, move, turn_counter)
+
+				if result == 1:
+					update_board(board, move, play_turn)
+				elif result == 2:
+					update_board(board, move, (play_turn+1)%2)
+				else:
+					update_board(board, move, play_turn)
+
 				print("======>", end="")
 				print("You won!" if result == 1 else "You lost!" if result == 2 else "Tie game!")
 		s.close()
@@ -120,7 +127,7 @@ def connect_to_server(s):
 			print("Can't connect to " + "http://" + AUTO_HOST + ":" + str(AUTO_PORT))
 	no_connection = True
 	while no_connection:
-		print("Enter empty field to use default values: 127.0.0.1:49152")
+		print("Enter empty field to use default values: " + HOST + ":" + str(PORT))
 		host = input("Enter the server IP address [255.255.255.255]: ")
 		host = HOST if len(host) == 0 else host
 
