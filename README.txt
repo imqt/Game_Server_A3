@@ -1,11 +1,12 @@
-# Tic-tac-toe server in C and client in Python
+# Tic-tac-toe + RockPaperScissors server in C and client in Python + Android
 
 ## Server:
   - Build with cmake
   - Run ./server
 
 ## Client:
-  - Run client.py with python v3
+  Run TicTacToe:         python ttt.py
+  Run RockPaperScissors: python rps.py
 
 ## Students:
   - Trung Bui  - A01071612
